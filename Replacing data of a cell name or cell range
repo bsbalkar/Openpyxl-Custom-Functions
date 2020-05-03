@@ -1,0 +1,94 @@
+import openpyxl
+from openpyxl import load_workbook
+import numpy as np
+from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
+
+def update_range(workbook, data, cell_range=None, named_range=None):
+    """
+    Updates an excel worksheet with the given data.
+    :param worksheet: an excel worksheet
+    :param data: data used to update the worksheet cell range (list, tuple, np.ndarray, pd.DataFrame)
+    :param cell_range: a string representing the cell range, e.g. 'AB12:XX23'
+    :param named_range: a string representing an excel named range
+    """
+    def create_data(data):
+        if not isinstance(data, (list, tuple, np.ndarray, pd.DataFrame)):
+            raise TypeError('Invalid data, data should be an array, DataFrame, list, tupple or array type iterable.')
+
+        if not len(data):
+            raise ValueError('You need to provide data to update the cells')
+
+        if isinstance(data, pd.DataFrame):
+            data = data.to_numpy()
+
+        elif isinstance(data, (list, tuple)):
+            data = np.array(data)
+        return data
+        
+    def create_cells(workbook, cell_range, named_range):
+        # check that we can access a cell range
+        if not any((cell_range, named_range) or all((cell_range, named_range))):
+            raise ValueError('`cell_range` or `named_range` should be provided.')
+
+        # get the cell range
+        if cell_range:
+            cells = cell_range
+        else:
+            try:
+                cells = workbook.defined_names[named_range]
+                cells=list(cells.destinations)[0][1].replace('$','')
+            except:
+                raise ValueError('The current worksheet "{}" does not contain any named range "{}".'.format(
+                    worksheet.title,
+                    named_range))
+
+        # checking that we have cells to update, and data
+        if not len(list(cells)):
+            raise ValueError('You need to provide cells to update.')
+
+        return cells
+
+    cells = create_cells(workbook, cell_range, named_range) 
+    data=create_data(data)
+    ws=workbook.active
+    z=''    
+    d=''
+    r=0
+    for e in range(len(cells)):
+        if cells[e] != ":":
+            z+= cells[e]
+            r+=1
+        else:
+            break
+    for f in range(r+1,len(cells)):
+        d+=cells[f]
+
+
+    Start_coordinate = coordinate_from_string(z)
+    End_coordinate = coordinate_from_string(d)
+    Start_col = column_index_from_string(Start_coordinate[0]) 
+    Start_row = Start_coordinate[1]
+    End_col = column_index_from_string(End_coordinate[0]) 
+    End_row = End_coordinate[1]
+    
+    if data.ndim == 2:
+        xx=0
+        for x in range(Start_row,End_row+1):
+            yy=0
+            for y in range(Start_col,End_col+1):
+                ws.cell(row=x, column=y,value=data[xx,yy])
+                yy+=1
+            xx+=1
+    else:
+        if Start_col!=End_col:
+            for x in range(Start_row,End_row+1):
+                yy=0
+                for y in range(Start_col,End_col+1):
+                    ws.cell(row=x, column=y,value=data[yy])
+                    yy+=1
+        else:
+            xx=0
+            for x in range(Start_row,End_row+1):
+                for y in range(Start_col,End_col+1):
+                    ws.cell(row=x, column=y,value=data[xx])
+                xx+=1
